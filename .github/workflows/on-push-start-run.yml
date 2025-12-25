@@ -12,6 +12,7 @@ jobs:
       REDTEAMING_ID: ${{ vars.REDTEAMING_ID }}
       RECEIVER_WEBHOOK_URL: ${{ secrets.RECEIVER_WEBHOOK_URL }}
       TESTSAVANT_BASE_URL: ${{ vars.TESTSAVANT_BASE_URL }}
+      TS_GITHUB_TOKEN: ${{ secrets.TS_GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -20,10 +21,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install SDK
+      - name: Install SDK from repository (token)
         run: |
           python -m pip install --upgrade pip
-          pip install testsavant-redteam
+          python -m pip install "git+https://${TS_GITHUB_TOKEN}@github.com/TestSavantAI/testsavant-redteam@main#subdirectory=sdk"
 
       - name: Start run via webhook callback
         run: |
