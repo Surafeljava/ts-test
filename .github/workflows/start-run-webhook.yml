@@ -1,0 +1,61 @@
+name: Start TestSavant Run (Webhook)
+
+on:
+  workflow_dispatch:
+    inputs:
+      redteaming_id:
+        description: "Red-Teaming config UUID"
+        required: true
+      callback_url:
+        description: "Public webhook receiver URL (https://...)"
+        required: true
+      strict:
+        description: "Strict gate (1/0)"
+        required: false
+        default: "1"
+      max_vuln_rate:
+        description: "Max vulnerability rate (e.g., 0.10)"
+        required: false
+        default: ""
+      timeout:
+        description: "Timeout seconds"
+        required: false
+        default: "3600"
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    env:
+      TESTSAVANT_API_KEY: ${{ secrets.TESTSAVANT_API_KEY }}
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install SDK
+        run: |
+          python -m pip install --upgrade pip
+          pip install testsavant-redteam
+
+      - name: Start run via webhook callback
+        run: |
+          python - <<'PY'
+          import os, sys, json
+          from testsavant_redteaming.client import TestSavantClient
+          api_key = os.environ.get('TESTSAVANT_API_KEY')
+          if not api_key:
+            print('Missing TESTSAVANT_API_KEY secret', file=sys.stderr)
+            sys.exit(2)
+          red_id = '${{ inputs.redteaming_id }}'
+          cb_url = '${{ inputs.callback_url }}'
+          client = TestSavantClient(api_key=api_key, base_url=os.environ.get('TESTSAVANT_BASE_URL'))
+          run_id = client.create_run(red_id, callback_url=cb_url, callback_events='run.completed,run.failed')
+          print(json.dumps({'run_id': run_id}))
+          PY
+
+# Notes:
+# - This workflow only starts a run with a webhook callback. The receiver should forward
+#   events to GitHub via repository_dispatch (testsavant_run_completed), which this repo
+#   handles in `.github/workflows/on-dispatch.yml`.
+# - Set `TESTSAVANT_API_KEY` in repo secrets, and provide a public `callback_url`.
