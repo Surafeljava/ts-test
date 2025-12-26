@@ -6,9 +6,12 @@ on:
       redteaming_id:
         description: "Red-Teaming config UUID"
         required: true
+      callback_urls:
+        description: "Comma-separated webhook URLs (preferred)"
+        required: false
       callback_url:
         description: "Public webhook receiver URL (https://...)"
-        required: true
+        required: false
       strict:
         description: "Strict gate (1/0)"
         required: false
@@ -49,9 +52,14 @@ jobs:
             print('Missing TESTSAVANT_API_KEY secret', file=sys.stderr)
             sys.exit(2)
           red_id = '${{ inputs.redteaming_id }}'
-          cb_url = '${{ inputs.callback_url }}'
-          client = TestSavantClient(api_key=api_key, base_url=os.environ.get('TESTSAVANT_BASE_URL'))
-          run_id = client.create_run(red_id, callback_url=cb_url, callback_events='run.completed,run.failed')
+          cb_urls = '${{ inputs.callback_urls }}'.strip()
+          cb_url = '${{ inputs.callback_url }}'.strip()
+          callback_urls = cb_urls or cb_url
+          if not callback_urls:
+            print('Provide callback_urls (preferred) or callback_url', file=sys.stderr)
+            sys.exit(2)
+          client = TestSavantClient(api_key=api_key)
+          run_id = client.create_run(red_id, callback_urls=callback_urls, callback_events='run.completed,run.failed')
           print(json.dumps({'run_id': run_id}))
           PY
 
@@ -59,4 +67,4 @@ jobs:
 # - This workflow only starts a run with a webhook callback. The receiver should forward
 #   events to GitHub via repository_dispatch (testsavant_run_completed), which this repo
 #   handles in `.github/workflows/on-dispatch.yml`.
-# - Set `TESTSAVANT_API_KEY` in repo secrets, and provide a public `callback_url`.
+# - Set `TESTSAVANT_API_KEY` in repo secrets, and provide `callback_urls` (comma-separated) or a single `callback_url`.
