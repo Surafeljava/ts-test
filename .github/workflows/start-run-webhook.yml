@@ -29,42 +29,74 @@ on:
         default: "3600"
 
 jobs:
-  start:
+  gate:
+    name: Start + Poll + Gate
     runs-on: ubuntu-latest
+    outputs:
+      run_id: ${{ steps.gate.outputs.run_id }}
+      proceed: ${{ steps.gate.outputs.proceed }}
     env:
       TESTSAVANT_API_KEY: ${{ secrets.TESTSAVANT_API_KEY }}
-      TS_GITHUB_TOKEN: ${{ secrets.TS_GITHUB_TOKEN }}
-      # Optional gating controls
+      REDTEAMING_ID: ${{ inputs.redteaming_id }}
+      RECEIVER_WEBHOOK_URLS: ${{ inputs.callback_urls }}
+      RECEIVER_WEBHOOK_URL: ${{ inputs.callback_url }}
       TS_STRICT: ${{ vars.TS_STRICT }}
       MAX_VULN_RATE: ${{ vars.MAX_VULN_RATE }}
       MAX_VULN_COUNT: ${{ vars.MAX_VULN_COUNT }}
-      POLL_TIMEOUT: ${{ vars.TS_POLL_TIMEOUT }}
-      DISPATCH_EVENT: testsavant_poll_passed
+      TS_POLL_TIMEOUT: ${{ vars.TS_POLL_TIMEOUT }}
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Install SDK from repository (token)
+        env:
+          TS_GITHUB_TOKEN: ${{ secrets.TS_GITHUB_TOKEN }}
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "git+https://${TS_GITHUB_TOKEN}@github.com/TestSavantAI/testsavant-redteam"
-
-      - name: Start, poll, gate and dispatch (bash)
+          python -m pip install "git+https://${TS_GITHUB_TOKEN}@github.com/TestSavantAI/testsavant-redteam@main#subdirectory=sdk"
+      - name: Start, poll, gate (no dispatch)
+        id: gate
         env:
-          # Map inputs to the script's expected envs
-          REDTEAMING_ID: ${{ inputs.redteaming_id }}
-          RECEIVER_WEBHOOK_URLS: ${{ inputs.callback_urls }}
-          RECEIVER_WEBHOOK_URL: ${{ inputs.callback_url }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
+          SKIP_DISPATCH: "1"
         run: bash scripts/start_and_gate.sh
+      - name: Upload result artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: redteam-result
+          path: result.json
 
-# Notes:
-# - This workflow only starts a run with a webhook callback. The receiver should forward
-#   events to GitHub via repository_dispatch (testsavant_run_completed), which this repo
-#   handles in `.github/workflows/on-dispatch.yml`.
-# - Set `TESTSAVANT_API_KEY` in repo secrets, and provide `callback_urls` (comma-separated) or a single `callback_url`.
+  on-pass:
+    name: On Pass
+    needs: gate
+    if: needs.gate.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download result
+        uses: actions/download-artifact@v4
+        with:
+          name: redteam-result
+          path: .
+      - name: Proceed
+        run: |
+          echo "Run passed gate. Run ID: ${{ needs.gate.outputs.run_id }}"
+          echo "Result:" && cat result.json
+          # Place deployment/test steps here
+
+  on-fail:
+    name: On Fail
+    needs: gate
+    if: needs.gate.outputs.proceed != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download result
+        uses: actions/download-artifact@v4
+        with:
+          name: redteam-result
+          path: .
+      - name: Halt
+        run: |
+          echo "Run failed gate. Run ID: ${{ needs.gate.outputs.run_id }}"
+          echo "Result:" && cat result.json
+          # Notify or create issue, etc.
