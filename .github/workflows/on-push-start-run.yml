@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   start:
     runs-on: ubuntu-latest
@@ -107,7 +110,6 @@ jobs:
             f.write(f"proceed={'true' if allowed else 'false'}\n")
 
           if allowed:
-            # Trigger next workflow via repository_dispatch
             repo = os.environ.get('GITHUB_REPOSITORY')
             token = os.environ.get('GITHUB_TOKEN')
             event_type = os.environ.get('DISPATCH_EVENT', 'testsavant_poll_passed')
