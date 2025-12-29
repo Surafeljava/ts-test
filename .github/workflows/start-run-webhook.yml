@@ -41,6 +41,8 @@ jobs:
       POLL_TIMEOUT: ${{ vars.TS_POLL_TIMEOUT }}
       DISPATCH_EVENT: testsavant_poll_passed
     steps:
+      - uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -59,7 +61,7 @@ jobs:
           RECEIVER_WEBHOOK_URL: ${{ inputs.callback_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: bash ts-test/scripts/start_and_gate.sh
+        run: bash scripts/start_and_gate.sh
 
 # Notes:
 # - This workflow only starts a run with a webhook callback. The receiver should forward
