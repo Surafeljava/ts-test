@@ -1,4 +1,4 @@
-name: Start TestSavant Run (Webhook)
+name: TestSavant RedTeam
 
 permissions:
   contents: write
@@ -82,7 +82,6 @@ jobs:
         run: |
           echo "Run passed gate. Run ID: ${{ needs.gate.outputs.run_id }}"
           echo "Result:" && cat result.json
-          # Place deployment/test steps here
 
   on-fail:
     name: On Fail
@@ -99,4 +98,3 @@ jobs:
         run: |
           echo "Run failed gate. Run ID: ${{ needs.gate.outputs.run_id }}"
           echo "Result:" && cat result.json
-          # Notify or create issue, etc.
